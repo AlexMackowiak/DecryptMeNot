@@ -4,6 +4,7 @@ from pytimeparse.timeparse import timeparse
 import random
 import time
 import typer
+from typing import Optional
 
 """
 Base algorithm:
@@ -31,7 +32,8 @@ TOTAL_NUM_KEYS = 10
 
 # TODO: add password option
 @app.command()
-def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str):
+def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
+            output_path: Optional[str] = typer.Option("", "--out", "-o")):
     secs_to_decrypt = parse_secs_to_decrypt(duration_to_decrypt)
     with open(file_path_to_encrypt, 'rb') as file_to_encrypt:
         file_contents = file_to_encrypt.read()
@@ -62,14 +64,17 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str):
     assert file_contents == decrypted
 
     # Write encrypted file contents to new file.
-    # TODO: Better file handling
-    output_file_path = "dnm_encrypted_" + file_path_to_encrypt
-    with open(output_file_path, 'wb') as output_file:
+    if len(output_path) == 0:
+        # TODO: Better file path handling
+        output_path = "dnm_encrypted_" + file_path_to_encrypt
+    with open(output_path, 'wb') as output_file:
         output_file.write(encrypted_file_contents)
+    print(f"File encrypted at {output_path}")
 
 
 @app.command()
-def decrypt(file_path_to_decrypt: str):
+def decrypt(file_path_to_decrypt: str,
+            output_path: Optional[str] = typer.Option("", "--out", "-o")):
     with open(file_path_to_decrypt, 'rb') as file_to_decrypt:
         encrypted_file_contents = file_to_decrypt.read()
 
@@ -86,9 +91,13 @@ def decrypt(file_path_to_decrypt: str):
                 pass
             inc_base256_bytes_key(curr_key)
 
-    # TODO: actually write file to disk
     print("Elapsed time:", time.time() - start_time)
-    print(encrypted_file_contents)
+    if len(output_path) == 0:
+        # TODO: Better file path handling
+        output_path = "decrypted_" + file_path_to_decrypt
+    with open(output_path, 'wb') as output_file:
+        output_file.write(encrypted_file_contents)
+    print(f"File decrypted at {output_path}")
 
 
 def parse_secs_to_decrypt(duration_to_decrypt: str) -> int:
