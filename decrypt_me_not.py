@@ -128,7 +128,6 @@ def base_10_to_base_n(base_10_num: int, base_n: int) -> bytes:
         bit_index += 1
     assert 0 <= bit_index < FERNET_KEY_LEN
     if curr_divisor > base_10_num:
-        # TODO: why overshoot?
         curr_divisor //= base_n
         bit_index -= 1
 
