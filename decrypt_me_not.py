@@ -3,6 +3,7 @@ from cryptography.fernet import Fernet, InvalidToken
 import random
 import sys
 import time
+import typer
 
 """
 Base algorithm:
@@ -21,19 +22,15 @@ Base algorithm:
 # Finding 4: Encrypting and decrypting key values _very slightly_ affect decryption speed
 # Finding 5: Effectively, encrypted message length is the only variable that matters in deriving decryption speed
 
+app = typer.Typer()
+
 KEY_NUMBER_BASE = 256
 FERNET_KEY_LEN = 32
 TOTAL_NUM_KEYS = 10
 
 
-def main(encrypt_or_decrypt: str, file_path: str, num_seconds: int):
-    if encrypt_or_decrypt == "encrypt":
-        encrypt(file_path, num_seconds)
-    else:
-        decrypt(file_path)
-
-
 # TODO: add password option
+@app.command()
 def encrypt(file_path_to_encrypt: str, secs_to_decrypt: int):
     with open(file_path_to_encrypt, 'rb') as file_to_encrypt:
         file_contents = file_to_encrypt.read()
@@ -70,6 +67,7 @@ def encrypt(file_path_to_encrypt: str, secs_to_decrypt: int):
         output_file.write(encrypted_file_contents)
 
 
+@app.command()
 def decrypt(file_path_to_decrypt: str):
     with open(file_path_to_decrypt, 'rb') as file_to_decrypt:
         encrypted_file_contents = file_to_decrypt.read()
@@ -87,6 +85,7 @@ def decrypt(file_path_to_decrypt: str):
                 pass
             inc_base256_bytes_key(curr_key)
 
+    # TODO: actually write file to disk
     print("Elapsed time:", time.time() - start_time)
     print(encrypted_file_contents)
 
@@ -144,37 +143,5 @@ def base_10_to_base_n(base_10_num: int, base_n: int) -> bytes:
     return base_n_num
 
 
-# TODO: Use conventions here
-def print_usage_and_exit(program_invoke: str):
-    print(f'Usage: {program_invoke} encrypt file_name.txt num_seconds')
-    print(f'Usage: {program_invoke} decrypt dmn_encrypted_file_name.txt')
-    exit(-1)
-
-
-# TODO: Use legit command line options
-if __name__ == '__main__':
-    program_invoke = sys.argv[0]
-    if len(sys.argv) < 2:
-        print_usage_and_exit(program_invoke)
-
-    encrypt_or_decrypt = sys.argv[1]
-    if encrypt_or_decrypt != 'encrypt' and encrypt_or_decrypt != 'decrypt':
-        print_usage_and_exit(program_invoke)
-
-    num_seconds = 0
-    if encrypt_or_decrypt == 'encrypt':
-        if len(sys.argv) != 4:
-            print_usage_and_exit(program_invoke)
-        try:
-            num_seconds = int(sys.argv[3])
-            if num_seconds <= 0:
-                print("seconds param cannot be <= 0")
-                exit(-1)
-        except ValueError:
-            print_usage_and_exit(program_invoke)
-    else:
-        if len(sys.argv) != 3:
-            print_usage_and_exit(program_invoke)
-
-    file_path = sys.argv[2]
-    main(encrypt_or_decrypt, file_path, num_seconds)
+if __name__ == "__main__":
+    app()
