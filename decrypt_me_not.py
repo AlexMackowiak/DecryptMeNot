@@ -1,7 +1,7 @@
 import base64
 from cryptography.fernet import Fernet, InvalidToken
+from pytimeparse.timeparse import timeparse
 import random
-import sys
 import time
 import typer
 
@@ -31,7 +31,8 @@ TOTAL_NUM_KEYS = 10
 
 # TODO: add password option
 @app.command()
-def encrypt(file_path_to_encrypt: str, secs_to_decrypt: int):
+def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str):
+    secs_to_decrypt = parse_secs_to_decrypt(duration_to_decrypt)
     with open(file_path_to_encrypt, 'rb') as file_to_encrypt:
         file_contents = file_to_encrypt.read()
 
@@ -88,6 +89,13 @@ def decrypt(file_path_to_decrypt: str):
     # TODO: actually write file to disk
     print("Elapsed time:", time.time() - start_time)
     print(encrypted_file_contents)
+
+
+def parse_secs_to_decrypt(duration_to_decrypt: str) -> int:
+    secs_to_decrypt = timeparse(duration_to_decrypt)
+    if secs_to_decrypt is None:
+        raise ValueError(f"could not parse duration \"{duration_to_decrypt}\" like 9h5m30s")
+    return int(secs_to_decrypt)
 
 
 # TODO: consolidate this with actual decryption implementation
