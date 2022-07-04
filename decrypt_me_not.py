@@ -30,6 +30,7 @@ FERNET_KEY_LEN = 32
 TOTAL_NUM_KEYS = 10
 
 
+# TODO: verbose option
 # TODO: add password option
 @app.command()
 def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
@@ -42,6 +43,7 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
     decrypt_secs_per_key = secs_to_decrypt / TOTAL_NUM_KEYS
     encrypted_file_contents = file_contents
     for _ in range(TOTAL_NUM_KEYS):
+        # TODO: can we extrapolate decryption time from the initial 5 second timing to larger file sizes?
         decryptions_per_sec = find_message_decrypt_time(encrypted_file_contents)
         print(decryptions_per_sec)
         num_decrypts_for_target_time = int(decrypt_secs_per_key * decryptions_per_sec)
@@ -81,15 +83,8 @@ def decrypt(file_path_to_decrypt: str,
     start_time = time.time()
     for i in range(TOTAL_NUM_KEYS):
         print(i, time.time() - start_time)
-        curr_key = bytearray(FERNET_KEY_LEN)
-        while True:
-            maybe_decryptor = Fernet(base64.urlsafe_b64encode(curr_key))
-            try:
-                encrypted_file_contents = maybe_decryptor.decrypt(encrypted_file_contents)
-                break
-            except InvalidToken:
-                pass
-            inc_base256_bytes_key(curr_key)
+        no_end_time = time.time() + 1_000_000_000
+        _, encrypted_file_contents = attempt_decrypt_until(encrypted_file_contents, no_end_time)
 
     print("Elapsed time:", time.time() - start_time)
     if len(output_path) == 0:
@@ -107,26 +102,31 @@ def parse_secs_to_decrypt(duration_to_decrypt: str) -> int:
     return int(secs_to_decrypt)
 
 
-# TODO: consolidate this with actual decryption implementation
 # Fake encrypt the message and time how long it would take to decrypt at the encrypted message size.
 def find_message_decrypt_time(file_contents: bytes) -> float:
-    random_encrypt_key = Fernet.generate_key()
-    fake_encrypted_file = Fernet(random_encrypt_key).encrypt(file_contents)
+    timing_secs = 5
+    while True:
+        random_encrypt_key = Fernet.generate_key()
+        fake_encrypted_file = Fernet(random_encrypt_key).encrypt(file_contents)
+        decryptions_per_sec, decrypted_contents = attempt_decrypt_until(fake_encrypted_file, time.time() + timing_secs)
+        if decrypted_contents is not None:
+            # Retry timing in the astronomically unlikely case of having guessed the fake random key.
+            continue
+        return decryptions_per_sec
 
-    num_failed_decryptions = 0
+
+def attempt_decrypt_until(enc_file_contents: bytes, end_time: float) -> (float, bytes):
     curr_key = bytearray(FERNET_KEY_LEN)
-    duration_secs = 5
-
+    num_failed_decryptions = 0
     start_time = time.time()
-    while time.time() < (start_time + duration_secs):
-        invalid_decryptor = Fernet(base64.urlsafe_b64encode(curr_key))
+    while time.time() < end_time:
+        maybe_decryptor = Fernet(base64.urlsafe_b64encode(curr_key))
         try:
-            invalid_decryptor.decrypt(fake_encrypted_file)
+            return 0, maybe_decryptor.decrypt(enc_file_contents)
         except InvalidToken:
-            pass
-        num_failed_decryptions += 1
-        inc_base256_bytes_key(curr_key)
-    return num_failed_decryptions / duration_secs
+            num_failed_decryptions += 1
+            inc_base256_bytes_key(curr_key)
+    return num_failed_decryptions / (end_time - start_time), None
 
 
 def inc_base256_bytes_key(curr_key: bytearray):
