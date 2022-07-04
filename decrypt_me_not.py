@@ -1,10 +1,11 @@
 import base64
 from cryptography.fernet import Fernet, InvalidToken
+from getpass import getpass, GetPassWarning
 from pytimeparse.timeparse import timeparse
 import random
 import time
 import typer
-from typing import Optional
+from typing import Optional, Union
 
 """
 Base algorithm:
@@ -30,14 +31,16 @@ FERNET_KEY_LEN = 32
 TOTAL_NUM_KEYS = 10
 
 
+# TODO: Use Python '' strings throughout
 # TODO: verbose option
-# TODO: add password option
 @app.command()
 def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
-            output_path: Optional[str] = typer.Option("", "--out", "-o")):
+            output_path: Optional[str] = typer.Option("", "--out", "-o"),
+            use_password: Optional[bool] = typer.Option(False, "--with-pass", "-p")):
     secs_to_decrypt = parse_secs_to_decrypt(duration_to_decrypt)
     with open(file_path_to_encrypt, 'rb') as file_to_encrypt:
         file_contents = file_to_encrypt.read()
+    password = prompt_user_password(use_password)
 
     keys = []
     decrypt_secs_per_key = secs_to_decrypt / TOTAL_NUM_KEYS
@@ -59,6 +62,11 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
         encrypted_file_contents = Fernet(fernet_encoded_random_key).encrypt(encrypted_file_contents)
         keys.append(fernet_encoded_random_key)
 
+    if use_password:
+        password_key = base64.urlsafe_b64encode(password)
+        encrypted_file_contents = Fernet(password_key).encrypt(encrypted_file_contents)
+        keys.append(password_key)
+
     # Sanity check that we can decrypt the file contents using known keys.
     decrypted = encrypted_file_contents
     for known_key in reversed(keys):
@@ -76,9 +84,19 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
 
 @app.command()
 def decrypt(file_path_to_decrypt: str,
-            output_path: Optional[str] = typer.Option("", "--out", "-o")):
+            output_path: Optional[str] = typer.Option("", "--out", "-o"),
+            use_password: Optional[bool] = typer.Option(False, "--with-pass", "-p")):
     with open(file_path_to_decrypt, 'rb') as file_to_decrypt:
         encrypted_file_contents = file_to_decrypt.read()
+
+    if use_password:
+        password = prompt_user_password(True)
+        password_decryptor = Fernet(base64.urlsafe_b64encode(password))
+        try:
+            encrypted_file_contents = password_decryptor.decrypt(encrypted_file_contents)
+        except InvalidToken:
+            print("Wrong password, try again")
+            exit(-1)
 
     start_time = time.time()
     for i in range(TOTAL_NUM_KEYS):
@@ -100,6 +118,24 @@ def parse_secs_to_decrypt(duration_to_decrypt: str) -> int:
     if secs_to_decrypt is None:
         raise ValueError(f"could not parse duration \"{duration_to_decrypt}\" like 9h5m30s")
     return int(secs_to_decrypt)
+
+
+def prompt_user_password(use_password: bool) -> Union[None, bytes]:
+    if not use_password:
+        return None
+    try:
+        password = getpass('encrypted-file top-level password: ')
+    except GetPassWarning:
+        print("Could not securely prompt for password, exiting...")
+        exit(-1)
+    if len(password) == 0:
+        print("Password cannot be empty")
+        exit(-1)
+    if len(password) > 32:
+        print("Password must be 32 characters or less")
+        exit(-1)
+    # Pad password with "A" characters because Fernet keys must be exactly length 32.
+    return (password + ("A" * (FERNET_KEY_LEN - len(password)))).encode()
 
 
 # Fake encrypt the message and time how long it would take to decrypt at the encrypted message size.
