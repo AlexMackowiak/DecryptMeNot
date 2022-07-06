@@ -24,10 +24,10 @@ class TestDecryptMeNot(unittest.TestCase):
             mock_getpass_func.return_value = 'TestPassword'
             encrypted_file_path = dnm_base_dir + "/encrypted_test.txt"
             decrypted_file_path = dnm_base_dir + "/decrypted_test.txt"
-            decrypt_me_not.encrypt(plaintext_file_path, "60s", encrypted_file_path, True)
+            decrypt_me_not.encrypt(plaintext_file_path, "60s", encrypted_file_path, True, False)
 
             decrypt_start_time = time.time()
-            decrypt_me_not.decrypt(encrypted_file_path, decrypted_file_path, True)
+            decrypt_me_not.decrypt(encrypted_file_path, decrypted_file_path, True, False)
             decrypt_duration = time.time() - decrypt_start_time
             # There is a ~66% chance we're within 1 stddev of the 60s mean (±11s)
             # There is a ~95% chance we're within 2 stddev of the 60s mean (±22s)
