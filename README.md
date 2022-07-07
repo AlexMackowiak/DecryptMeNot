@@ -7,6 +7,7 @@ $ git clone https://github.com/AlexMackowiak/DecryptMeNot.git
 $ cd DecryptMeNot
 $ python3 -m venv .venv
 $ source .venv/bin/activate
+(.venv) $ pip3 install --upgrade pip
 (.venv) $ pip3 install -r requirements.txt
 ```
 

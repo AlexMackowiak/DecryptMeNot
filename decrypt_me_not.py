@@ -7,22 +7,12 @@ import time
 import typer
 from typing import Optional, Union
 
-"""
-Base algorithm:
-1. Get decryption time for a given message size
-    a. One problem: decryption time does not scale linearly with message size
-        i. Solution: store an extra line in the file which can be used to check against 
-        ii. Solution 2: Time decryptions for the given message length at each key <--- Just go with this for now
-2. For each of 50 keys:
-    a. Calculate num average decryptions for current message size to achieve an average of 1/50th of total time
-    b. Take a random value from a keyspace large enough to average to 1/50th of the total time
-    c. Use the encoded value as the key for the current round
-"""
-# Finding 1: timing IS incredibly similar for the exact same encrypted input
-# Finding 2: size explodes exponentially with each key, at least 1.33x per key. At 10 keys will 17x file size
-# Finding 3: Message contents do not affect decryption speed
-# Finding 4: Encrypting and decrypting key values _very slightly_ affect decryption speed
-# Finding 5: Effectively, encrypted message length is the only variable that matters in deriving decryption speed
+# Experimental findings:
+#  1. Timing is incredibly similar for the exact same encrypted input
+#  2. Size explodes exponentially with each key, at least 1.33x per key. Using 10 keys will 17x file size
+#  3. Message contents do not affect decryption speed
+#  4. Encrypting and decrypting key values _very slightly_ affect decryption speed
+#  5. Effectively, encrypted message length is the only variable that matters in deriving decryption speed
 
 # Potential optimization: file sizes over 50KB are very easily predictable.
 # The next level's encrypted file size and decryption speed will be ~4/3 the size of the current level.
@@ -35,12 +25,11 @@ app = typer.Typer()
 verbose = False
 
 
-# TODO: Use Python '' strings throughout
 @app.command()
 def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
-            output_path: Optional[str] = typer.Option("", "--out", "-o"),
-            use_password: Optional[bool] = typer.Option(False, "--with-pass", "-p"),
-            use_verbose: Optional[bool] = typer.Option(False, "--verbose", "-v")):
+            output_path: Optional[str] = typer.Option('', '--out', '-o'),
+            use_password: Optional[bool] = typer.Option(False, '--with-pass', '-p'),
+            use_verbose: Optional[bool] = typer.Option(False, '--verbose', '-v')):
     if use_verbose:
         global verbose
         verbose = True
@@ -53,16 +42,16 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
     decrypt_secs_per_key = secs_to_decrypt / TOTAL_NUM_KEYS
     encrypted_file_contents = file_contents
     for key_index in range(TOTAL_NUM_KEYS):
-        vprint(f"Selecting encryption key {key_index+1}...")
+        vprint(f'Selecting encryption key {key_index+1}...')
         decryptions_per_sec = find_message_decrypt_time(encrypted_file_contents)
-        vprint(f"At file size {len(encrypted_file_contents)}: {int(decryptions_per_sec)} decryptions/sec")
+        vprint(f'At file size {len(encrypted_file_contents)}: {int(decryptions_per_sec)} decryptions/sec')
         num_decrypts_for_target_time = int(decrypt_secs_per_key * decryptions_per_sec)
         keyspace_size = 2 * num_decrypts_for_target_time  # Uniform distribution, average to find key is 1/2 keyspace.
 
         # Represent keys as a 32-bit integer with bits in number base 256.
         random_key_base_10 = random.randint(0, keyspace_size)
         base_256_key = base_10_to_base_n(random_key_base_10, KEY_NUMBER_BASE)
-        vprint(f"Keyspace size {keyspace_size} will average {decrypt_secs_per_key} seconds to decrypt")
+        vprint(f'Keyspace size {keyspace_size} will average {decrypt_secs_per_key} seconds to decrypt')
         vprint()
 
         # Base64 encode the key and use it to encrypt.
@@ -84,17 +73,17 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
     # Write encrypted file contents to new file.
     if len(output_path) == 0:
         # TODO: Better file path handling
-        output_path = "dnm_encrypted_" + file_path_to_encrypt
+        output_path = 'dnm_encrypted_' + file_path_to_encrypt
     with open(output_path, 'wb') as output_file:
         output_file.write(encrypted_file_contents)
-    vprint(f"File encrypted to {output_path}")
+    vprint(f'File encrypted to {output_path}')
 
 
 @app.command()
 def decrypt(file_path_to_decrypt: str,
-            output_path: Optional[str] = typer.Option("", "--out", "-o"),
-            use_password: Optional[bool] = typer.Option(False, "--with-pass", "-p"),
-            use_verbose: Optional[bool] = typer.Option(False, "--verbose", "-v")):
+            output_path: Optional[str] = typer.Option('', '--out', '-o'),
+            use_password: Optional[bool] = typer.Option(False, '--with-pass', '-p'),
+            use_verbose: Optional[bool] = typer.Option(False, '--verbose', '-v')):
     if use_verbose:
         global verbose
         verbose = True
@@ -107,27 +96,27 @@ def decrypt(file_path_to_decrypt: str,
         try:
             encrypted_file_contents = password_decryptor.decrypt(encrypted_file_contents)
         except InvalidToken:
-            print("Wrong password, try again")
+            print('Wrong password, try again')
             exit(-1)
 
     start_time = time.time()
     for i in range(TOTAL_NUM_KEYS):
         no_end_time = time.time() + 1_000_000_000
         _, encrypted_file_contents = attempt_decrypt_until(encrypted_file_contents, no_end_time)
-        vprint(f"Key {i+1}/{TOTAL_NUM_KEYS} found, elapsed time: {time.time() - start_time}")
+        vprint(f'Key {i+1}/{TOTAL_NUM_KEYS} found, elapsed time: {time.time() - start_time}')
 
     if len(output_path) == 0:
         # TODO: Better file path handling
-        output_path = "decrypted_" + file_path_to_decrypt
+        output_path = 'decrypted_' + file_path_to_decrypt
     with open(output_path, 'wb') as output_file:
         output_file.write(encrypted_file_contents)
-    vprint(f"File decrypted to {output_path}")
+    vprint(f'File decrypted to {output_path}')
 
 
 def parse_secs_to_decrypt(duration_to_decrypt: str) -> int:
     secs_to_decrypt = timeparse(duration_to_decrypt)
     if secs_to_decrypt is None:
-        raise ValueError(f"could not parse duration \"{duration_to_decrypt}\" like 9h5m30s")
+        raise ValueError(f'could not parse duration "{duration_to_decrypt}" like 9h5m30s')
     return int(secs_to_decrypt)
 
 
@@ -137,16 +126,17 @@ def prompt_user_password(use_password: bool) -> Union[None, bytes]:
     try:
         password = getpass('encrypted-file top-level password: ')
     except GetPassWarning:
-        print("Could not securely prompt for password, exiting...")
+        print('Could not securely prompt for password, exiting...')
         exit(-1)
+        return None
     if len(password) == 0:
-        print("Password cannot be empty")
+        print('Password cannot be empty')
         exit(-1)
     if len(password) > 32:
-        print("Password must be 32 characters or less")
+        print('Password must be 32 characters or less')
         exit(-1)
-    # Pad password with "A" characters because Fernet keys must be exactly length 32.
-    return (password + ("A" * (FERNET_KEY_LEN - len(password)))).encode()
+    # Pad password with 'A' characters because Fernet keys must be exactly length 32.
+    return (password + ('A' * (FERNET_KEY_LEN - len(password)))).encode()
 
 
 # Fake encrypt the message and time how long it would take to decrypt at the encrypted message size.
@@ -211,5 +201,5 @@ def vprint(*args, **kwargs):
         print(*args, **kwargs)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app()
