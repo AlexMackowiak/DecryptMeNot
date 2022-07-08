@@ -1,6 +1,7 @@
 import base64
 from cryptography.fernet import Fernet, InvalidToken
 from getpass import getpass, GetPassWarning
+import os.path
 from pytimeparse.timeparse import timeparse
 import random
 import time
@@ -30,9 +31,7 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
             output_path: Optional[str] = typer.Option('', '--out', '-o'),
             use_password: Optional[bool] = typer.Option(False, '--with-pass', '-p'),
             use_verbose: Optional[bool] = typer.Option(False, '--verbose', '-v')):
-    if use_verbose:
-        global verbose
-        verbose = True
+    set_verbose_option(use_verbose)
     secs_to_decrypt = parse_secs_to_decrypt(duration_to_decrypt)
     with open(file_path_to_encrypt, 'rb') as file_to_encrypt:
         file_contents = file_to_encrypt.read()
@@ -71,9 +70,7 @@ def encrypt(file_path_to_encrypt: str, duration_to_decrypt: str,
     assert file_contents == decrypted
 
     # Write encrypted file contents to new file.
-    if len(output_path) == 0:
-        # TODO: Better file path handling
-        output_path = 'dnm_encrypted_' + file_path_to_encrypt
+    output_path = get_output_path(file_path_to_encrypt, output_path, 'dnm_encrypted_')
     with open(output_path, 'wb') as output_file:
         output_file.write(encrypted_file_contents)
     vprint(f'File encrypted to {output_path}')
@@ -84,9 +81,7 @@ def decrypt(file_path_to_decrypt: str,
             output_path: Optional[str] = typer.Option('', '--out', '-o'),
             use_password: Optional[bool] = typer.Option(False, '--with-pass', '-p'),
             use_verbose: Optional[bool] = typer.Option(False, '--verbose', '-v')):
-    if use_verbose:
-        global verbose
-        verbose = True
+    set_verbose_option(use_verbose)
     with open(file_path_to_decrypt, 'rb') as file_to_decrypt:
         encrypted_file_contents = file_to_decrypt.read()
 
@@ -105,9 +100,7 @@ def decrypt(file_path_to_decrypt: str,
         _, encrypted_file_contents = attempt_decrypt_until(encrypted_file_contents, no_end_time)
         vprint(f'Key {i+1}/{TOTAL_NUM_KEYS} found, elapsed time: {time.time() - start_time}')
 
-    if len(output_path) == 0:
-        # TODO: Better file path handling
-        output_path = 'decrypted_' + file_path_to_decrypt
+    output_path = get_output_path(file_path_to_decrypt, output_path, 'decrypted_')
     with open(output_path, 'wb') as output_file:
         output_file.write(encrypted_file_contents)
     vprint(f'File decrypted to {output_path}')
@@ -132,8 +125,8 @@ def prompt_user_password(use_password: bool) -> Union[None, bytes]:
     if len(password) == 0:
         print('Password cannot be empty')
         exit(-1)
-    if len(password) > 32:
-        print('Password must be 32 characters or less')
+    if len(password) > FERNET_KEY_LEN:
+        print(f'Password must be {FERNET_KEY_LEN} characters or less')
         exit(-1)
     # Pad password with 'A' characters because Fernet keys must be exactly length 32.
     return (password + ('A' * (FERNET_KEY_LEN - len(password)))).encode()
@@ -196,9 +189,24 @@ def base_10_to_base_n(base_10_num: int, base_n: int) -> bytes:
     return base_n_num
 
 
+def set_verbose_option(use_verbose: bool):
+    if use_verbose:
+        global verbose
+        verbose = True
+
+
 def vprint(*args, **kwargs):
     if verbose:
         print(*args, **kwargs)
+
+
+def get_output_path(user_input_path: str, user_output_path: str, default_name_prefix: str) -> str:
+    if len(user_output_path) > 0:
+        return user_output_path
+    # No user output path provided, add a prefix to the input file name in that file's directory.
+    input_file_dir = os.path.dirname(user_input_path)
+    input_file_name = os.path.basename(user_input_path)
+    return os.path.join(input_file_dir, default_name_prefix + input_file_name)
 
 
 if __name__ == '__main__':
